@@ -217,6 +217,16 @@ class CyberMystery(Star):
         lines.append(_CHOOSE_TIP)
         return "\n".join(lines)
 
+    @staticmethod
+    def _normalize_seed(seed) -> str | int | None:
+        """把纯数字字符串种子转成 int，保证与本地搜索/复现一致。"""
+        if seed is None:
+            return None
+        try:
+            return int(str(seed))
+        except (ValueError, TypeError):
+            return seed
+
     # ---------- 人生输出 ----------
 
     async def _finish_life(self, event: AstrMessageEvent, result: dict):
@@ -299,6 +309,7 @@ class CyberMystery(Star):
         seed: str | int | None = None,
     ):
         """跑一局人生并返回待输出的异步生成器；seed 非空时使用确定性随机源。"""
+        seed = self._normalize_seed(seed)
         rng = random.Random(seed) if seed is not None else self._rng
         result = engine.simulate(rng, origin_key, talent_key)
         if seed is not None:

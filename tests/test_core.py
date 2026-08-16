@@ -244,6 +244,11 @@ def test_remainder_strips_group_and_subcommand():
 
 # ---------- 种子复现 ----------
 
+def test_normalize_seed():
+    assert CyberMystery._normalize_seed("14") == 14
+    assert CyberMystery._normalize_seed("abc") == "abc"
+    assert CyberMystery._normalize_seed(None) is None
+
 def test_known_god_and_eldritch_seeds():
     god = engine.simulate(random.Random(14), "tingen_clerk", "stage_talent")
     assert god["category"] == "god"
