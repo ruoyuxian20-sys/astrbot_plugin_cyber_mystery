@@ -164,12 +164,12 @@ def simulate(
             is_outer = True
             pathway_key = rng.choice(list(pathways_mod.OUTER_PATHWAYS))
             lines.append(
-                _line("contact", age, pick_text(events_mod.OUTER_CONTACT_EVENTS))
+                _line("contact", age, pick_text(events_mod.OUTER_CONTACT_EVENTS + events_mod.EXTRA_CONTACT_EVENTS.get(pathway_key, [])))
             )
         else:
             pathway_key = _pick_pathway(rng, origin, talent)
             lines.append(
-                _line("contact", age, pick_text(events_mod.CONTACT_EVENTS[pathway_key]))
+                _line("contact", age, pick_text(events_mod.CONTACT_EVENTS[pathway_key] + events_mod.EXTRA_CONTACT_EVENTS.get(pathway_key, [])))
             )
         pathway = pathways_mod.get_pathway(pathway_key)
         seq = 9
@@ -198,7 +198,10 @@ def simulate(
         pathway = pathways_mod.get_pathway(pathway_key)
 
         # 段内事件：外神氛围 / 途径特色 / 通用
-        sig = events_mod.SIGNATURE_EVENTS.get(pathway_key, {}).get(stage)
+        sig = (
+            events_mod.SIGNATURE_EVENTS.get(pathway_key, {}).get(stage, [])
+            + events_mod.EXTRA_SIGNATURE_EVENTS.get(pathway_key, {}).get(stage, [])
+        )
         if is_outer:
             pool = (
                 events_mod.OUTER_EVENTS[stage]
