@@ -1,0 +1,19 @@
+{
+  "use_image": {
+    "description": "是否使用图文卡片输出人生结果。需要 AstrBot 文本转图（T2I）功能可用；渲染失败会自动回退到纯文本。选择列表始终以纯文本输出以保证交互速度。",
+    "type": "bool",
+    "default": false
+  },
+  "ranking_size": {
+    "description": "天骄榜显示的条目数量上限。",
+    "type": "int",
+    "default": 10,
+    "hint": "建议 3-20"
+  },
+  "choose_timeout_seconds": {
+    "description": "重开时每个选择点（出身/天赋）的等待超时（秒），超时未选自动作废。",
+    "type": "int",
+    "default": 90,
+    "hint": "建议 30-300"
+  }
+}
