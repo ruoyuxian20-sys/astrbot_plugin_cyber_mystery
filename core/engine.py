@@ -23,21 +23,63 @@ GOD_ACTING_MIN = 3           # 登神要求的完美扮演次数
 ELDRITCH_FROM_GOD = 0.12     # 登神后吞并相邻途径成为旧日的概率
 SCORE_SEQ = {9: 18, 8: 26, 7: 34, 6: 42, 5: 50, 4: 58, 3: 66, 2: 74, 1: 82, 0: 95}
 
-# ---------- 晋升词 ----------
-ASCENSION_SEQ4 = """魔药在喉间化作灰雾，你听见命运之线崩断的轻响。
-半神之门于眼前洞开，神话生物的血脉开始苏醒。
-从今往后，你不再只是行走人间的非凡者——
-你是圣者，是凡人仰望的深渊。"""
+# ---------- 晋升词（按途径专属生成） ----------
+PATHWAY_ESSENCE = {
+    "fool": "灰雾之上的愚弄与奇迹",
+    "door": "无尽门扉与空间夹缝",
+    "error": "规则裂隙与命运偷窃",
+    "hanged": "阴影祷告与堕落圣言",
+    "visionary": "人心剧场与梦境操控",
+    "tyrant": "风暴怒海与天灾权柄",
+    "sun": "永恒光辉与净化圣火",
+    "tower": "知识洪流与真理之眼",
+    "paragon": "齿轮文明与造物之火",
+    "giant": "古老力量与黄昏战歌",
+    "night": "永夜安眠与隐秘阴影",
+    "death": "亡者国度与生死摆渡",
+    "red_priest": "战争火焰与征服铁血",
+    "witch": "欢愉痛苦与混沌魔药",
+    "hermit": "禁忌知识与疯狂奥秘",
+    "monster": "无常命运与幸运厄运",
+    "mother_of_tree": "欲望根系与失心之树",
+    "wheel_of_fate": "永恒轮回与命运之环",
+    "star_sovereign": "无垠星空与沉重星核",
+    "primordial_hunger": "永不满足的聚合之口",
+    "dimension_shifter": "高维俯视与画中世界",
+    "whisper": "不熄呓语与意识共鸣",
+    "decay_lord": "万物终朽与熵之权柄",
+    "chaos_mist": "不确定迷雾与监督真理",
+    "bound_one": "暗影锁链与神孽囚笼",
+    "black_emperor": "秩序腐化与黑皇帝律",
+    "fallen_mother": "绯红月光与母巢根源",
+    "chaos_womb": "生命原胎与现实主宰",
+    "evil_origin": "丰饶背面的原初恶意",
+    "disorder_realm": "律法倒影与失序之国",
+}
 
-ASCENSION_GOD = """最后一滴魔药落入舌尖，世界在这一刻安静如初。
-无数道目光自历史与星空投来，见证你的名讳刻入途径本身。
-旧日的阴影退潮，教会的钟声为新的纪元而鸣。
-你登临序列0，成为此世真神——「{seq0}」。"""
 
-ASCENSION_ELDRITCH = """仪式没有停下，它向着常理之外继续坠落。
-你听见相邻途径的序列0在黑暗中低语，于是你伸手吞下。
-历史在你身后合拢，神话自你面前展开。
-世界因你而改写——你已是旧日。"""
+def _ascension_text(pathway_key: str, pathway: dict, kind: str) -> str:
+    """按途径生成序列四 / 真神 / 旧日的专属晋升词。"""
+    essence = PATHWAY_ESSENCE.get(pathway_key, "神秘")
+    seq4 = pathways_mod.seq_name(pathway, 4)
+    seq0 = pathways_mod.seq0_name(pathway)
+    if kind == "seq4":
+        return (
+            f"魔药入喉，{seq4}的轮廓在{essence}中浮现。\n"
+            f"你听见{pathway['name']}途径的源质开始低语，半神之门轰然洞开。\n"
+            "从今往后，你已是圣者——凡人仰望的深渊。"
+        )
+    if kind == "god":
+        return (
+            f"最后一滴魔药落入舌尖，{essence}在你体内彻底苏醒。\n"
+            f"「{seq0}」之名被刻入{pathway['name']}途径的顶点，旧日退潮。\n"
+            "你登临序列0，成为此世真神。"
+        )
+    return (
+        f"仪式没有停下，{essence}向着常理之外继续坍缩。\n"
+        f"你吞下相邻途径的序列0，{seq0}与你的存在融为一体。\n"
+        "历史在你身后合拢，世界因你而改写——你已是旧日。"
+    )
 
 
 def _line(kind: str, age: int | None, text: str) -> dict:
@@ -240,7 +282,7 @@ def simulate(
                             "你抵达了外神途径的尽头——常理在你身后合拢",
                         )
                     )
-                    lines.append(_line("advance", age, ASCENSION_ELDRITCH))
+                    lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "eldritch")))
                     seq = 0
                     finished = "eldritch"
                 elif rng.random() < ELDRITCH_FROM_GOD:
@@ -251,7 +293,7 @@ def simulate(
                             "登神的仪式没有停下——你顺手吞下了相邻途径的序列0",
                         )
                     )
-                    lines.append(_line("advance", age, ASCENSION_ELDRITCH))
+                    lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "eldritch")))
                     seq = 0
                     finished = "eldritch"
                 else:
@@ -262,7 +304,7 @@ def simulate(
                             f"你完成了最后的仪式——「{pathways_mod.seq0_name(pathway)}」之名加于你身",
                         )
                     )
-                    lines.append(_line("advance", age, ASCENSION_GOD.format(seq0=pathways_mod.seq0_name(pathway))))
+                    lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "god")))
                     seq = 0
                     finished = "god"
             else:
@@ -285,7 +327,7 @@ def simulate(
                 )
             )
             if seq == 4:
-                lines.append(_line("advance", age, ASCENSION_SEQ4))
+                lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "seq4")))
             if seq <= 3 and watched:
                 lines.append(
                     _line(
