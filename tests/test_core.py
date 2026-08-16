@@ -250,10 +250,10 @@ def test_normalize_seed():
     assert CyberMystery._normalize_seed(None) is None
 
 def test_known_god_and_eldritch_seeds():
-    god = engine.simulate(random.Random(14), "tingen_clerk", "stage_talent")
+    god = engine.simulate(random.Random(4), "tingen_clerk", "stage_talent")
     assert god["category"] == "god"
     assert god["final_seq"] == 0
 
-    eld = engine.simulate(random.Random(37), "bansy_watcher", "ancient_blood")
+    eld = engine.simulate(random.Random(12), "tingen_clerk", "lucky_coin")
     assert eld["category"] == "eldritch"
     assert eld["final_seq"] == 0

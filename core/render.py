@@ -46,40 +46,107 @@ def build_life_html(
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    width: 640px;
-    padding: 36px 40px;
-    font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
-    color: #ddd8cc;
-    background: linear-gradient(165deg, #14161c 0%, #23262f 40%, #171a21 100%);
-    border-radius: 20px;
+    width: 680px;
+    padding: 42px 44px;
+    font-family: "Noto Sans SC", "Microsoft YaHei", serif;
+    color: #ded7c4;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(120, 80, 180, 0.16) 0, transparent 34%),
+      radial-gradient(circle at 88% 82%, rgba(40, 90, 140, 0.18) 0, transparent 38%),
+      radial-gradient(1px 1px at 20% 30%, #d9c48a 50%, transparent 51%),
+      radial-gradient(1px 1px at 70% 20%, #b9a6e0 50%, transparent 51%),
+      radial-gradient(1px 1px at 85% 55%, #8fd0e8 50%, transparent 51%),
+      radial-gradient(1px 1px at 35% 75%, #e0b48a 50%, transparent 51%),
+      linear-gradient(160deg, #0b0d16 0%, #151225 45%, #0a101c 100%);
+    background-size: auto, auto, 90px 90px, 110px 110px, 130px 130px, 100px 100px, auto;
+    border-radius: 24px;
   }}
   .card {{
-    border: 1px solid rgba(200, 178, 120, 0.35);
-    border-radius: 16px;
-    padding: 28px 26px;
-    background: rgba(16, 18, 24, 0.6);
-    box-shadow: 0 0 42px rgba(120, 130, 160, 0.14);
+    border: 1px solid rgba(210, 180, 100, 0.55);
+    border-radius: 20px;
+    padding: 32px 30px;
+    background: rgba(8, 10, 18, 0.78);
+    box-shadow:
+      0 0 60px rgba(100, 70, 180, 0.18),
+      0 0 24px rgba(210, 180, 100, 0.08),
+      inset 0 0 60px rgba(30, 20, 60, 0.25);
   }}
   .title {{
-    font-size: 30px;
+    font-size: 32px;
     font-weight: 700;
-    color: #d8c48e;
-    letter-spacing: 3px;
-    margin-bottom: 14px;
+    color: #e6c878;
+    text-align: center;
+    letter-spacing: 6px;
+    text-shadow: 0 0 18px rgba(230, 200, 120, 0.35);
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(210, 180, 100, 0.35);
   }}
-  .hline {{ font-size: 14px; color: #9aa2b4; margin-bottom: 4px; }}
-  .sep {{ height: 14px; border-top: 1px dashed rgba(200,178,120,0.22); margin: 14px 0 10px; }}
-  .line {{ font-size: 15.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; color: #c9c5ba; }}
-  .line-birth {{ color: #b9c2d4; }}
-  .line-youth {{ color: #aab4c6; }}
-  .line-key {{ color: #e4d3a2; }}
-  .line-acting {{ color: #9db98d; }}
-  .line-crisis {{ color: #c98a8a; }}
-  .line-meta {{ color: #8b93a6; font-style: italic; }}
-  .ending {{ margin-top: 16px; font-size: 20px; font-weight: 700; color: #e4d3a2; }}
-  .etext {{ font-size: 15px; line-height: 1.7; color: #cfcabd; margin-top: 6px; }}
-  .note {{ margin-top: 10px; font-size: 13.5px; color: #9aa2b4; }}
-  .footer {{ margin-top: 18px; font-size: 12px; color: #7d8496; border-top: 1px dashed rgba(200,178,120,0.25); padding-top: 12px; }}
+  .title::before {{ content: "✦ "; color: #b3924a; }}
+  .title::after {{ content: " ✦"; color: #b3924a; }}
+  .hline {{
+    font-size: 14px;
+    color: #b8ac92;
+    margin: 5px 0;
+    padding: 2px 10px;
+    border-left: 2px solid rgba(210, 180, 100, 0.3);
+  }}
+  .sep {{
+    height: 1px;
+    margin: 18px 0 14px;
+    background: linear-gradient(90deg, transparent, rgba(210,180,100,0.5), transparent);
+  }}
+  .line {{
+    display: block;
+    font-size: 15.5px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #cfc8b8;
+    margin: 7px 0;
+    padding: 8px 14px 8px 18px;
+    border-left: 2px solid rgba(210, 180, 100, 0.4);
+    border-radius: 0 10px 10px 0;
+    background: linear-gradient(90deg, rgba(210, 180, 100, 0.09), transparent 72%);
+  }}
+  .line-birth {{ color: #c3c9dd; border-left-color: #7f8db5; }}
+  .line-youth {{ color: #aab4cc; border-left-color: #7a86a8; }}
+  .line-key {{ color: #e6d5a0; border-left-color: #d4af55; }}
+  .line-key::before {{ content: "◈ "; color: #b3924a; }}
+  .line-acting {{ color: #a8c89a; border-left-color: #7fa872; }}
+  .line-acting::before {{ content: "✧ "; color: #7fa872; }}
+  .line-crisis {{ color: #d49a8a; border-left-color: #b35d4a; }}
+  .line-crisis::before {{ content: "☠ "; color: #b35d4a; }}
+  .line-meta {{ color: #9a8fb0; border-left-color: #7a6b96; font-style: italic; }}
+  .line-meta::before {{ content: "☾ "; color: #7a6b96; }}
+  .ending {{
+    margin-top: 20px;
+    font-size: 22px;
+    font-weight: 700;
+    color: #e6c878;
+    text-align: center;
+    letter-spacing: 3px;
+    padding: 12px 0;
+    border-top: 1px solid rgba(210,180,100,0.35);
+    border-bottom: 1px solid rgba(210,180,100,0.35);
+  }}
+  .etext {{
+    font-size: 15.5px;
+    line-height: 1.8;
+    color: #d6cfc0;
+    margin-top: 10px;
+    padding: 0 8px;
+    text-align: center;
+  }}
+  .note {{ margin-top: 14px; font-size: 14px; color: #b8ac92; text-align: center; }}
+  .footer {{
+    margin-top: 18px;
+    font-size: 12.5px;
+    color: #8d8496;
+    text-align: center;
+    border-top: 1px dashed rgba(210,180,100,0.3);
+    padding-top: 12px;
+  }}
 </style>
 </head>
 <body>

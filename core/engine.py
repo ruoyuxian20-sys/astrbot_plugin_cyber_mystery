@@ -23,6 +23,22 @@ GOD_ACTING_MIN = 3           # 登神要求的完美扮演次数
 ELDRITCH_FROM_GOD = 0.12     # 登神后吞并相邻途径成为旧日的概率
 SCORE_SEQ = {9: 18, 8: 26, 7: 34, 6: 42, 5: 50, 4: 58, 3: 66, 2: 74, 1: 82, 0: 95}
 
+# ---------- 晋升词 ----------
+ASCENSION_SEQ4 = """魔药在喉间化作灰雾，你听见命运之线崩断的轻响。
+半神之门于眼前洞开，神话生物的血脉开始苏醒。
+从今往后，你不再只是行走人间的非凡者——
+你是圣者，是凡人仰望的深渊。"""
+
+ASCENSION_GOD = """最后一滴魔药落入舌尖，世界在这一刻安静如初。
+无数道目光自历史与星空投来，见证你的名讳刻入途径本身。
+旧日的阴影退潮，教会的钟声为新的纪元而鸣。
+你登临序列0，成为此世真神——「{seq0}」。"""
+
+ASCENSION_ELDRITCH = """仪式没有停下，它向着常理之外继续坠落。
+你听见相邻途径的序列0在黑暗中低语，于是你伸手吞下。
+历史在你身后合拢，神话自你面前展开。
+世界因你而改写——你已是旧日。"""
+
 
 def _line(kind: str, age: int | None, text: str) -> dict:
     return {"kind": kind, "age": age, "text": text}
@@ -224,6 +240,7 @@ def simulate(
                             "你抵达了外神途径的尽头——常理在你身后合拢",
                         )
                     )
+                    lines.append(_line("advance", age, ASCENSION_ELDRITCH))
                     seq = 0
                     finished = "eldritch"
                 elif rng.random() < ELDRITCH_FROM_GOD:
@@ -234,6 +251,7 @@ def simulate(
                             "登神的仪式没有停下——你顺手吞下了相邻途径的序列0",
                         )
                     )
+                    lines.append(_line("advance", age, ASCENSION_ELDRITCH))
                     seq = 0
                     finished = "eldritch"
                 else:
@@ -244,6 +262,7 @@ def simulate(
                             f"你完成了最后的仪式——「{pathways_mod.seq0_name(pathway)}」之名加于你身",
                         )
                     )
+                    lines.append(_line("advance", age, ASCENSION_GOD.format(seq0=pathways_mod.seq0_name(pathway))))
                     seq = 0
                     finished = "god"
             else:
@@ -265,6 +284,8 @@ def simulate(
                     f"你晋升「{name}」" + ("" if has_name else f"（{pathway['name']}途径）"),
                 )
             )
+            if seq == 4:
+                lines.append(_line("advance", age, ASCENSION_SEQ4))
             if seq <= 3 and watched:
                 lines.append(
                     _line(
