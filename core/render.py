@@ -35,21 +35,9 @@ def _esc(value: object) -> str:
 def _chunk_lines(
     body_lines: list[tuple[str, str]], max_lines: int = 36, max_chars: int = 3600
 ) -> list[list[tuple[str, str]]]:
-    """优先使用横向网格；仅在内容极多时才分页。"""
-    chunks: list[list[tuple[str, str]]] = []
-    current: list[tuple[str, str]] = []
-    chars = 0
-    for line in body_lines:
-        length = len(line[1])
-        if current and (len(current) >= max_lines or chars + length > max_chars):
-            chunks.append(current)
-            current = []
-            chars = 0
-        current.append(line)
-        chars += length
-    if current:
-        chunks.append(current)
-    return chunks or [[]]
+    """人生年鉴固定为一张超宽三栏图，不做自动分页。"""
+    del max_lines, max_chars
+    return [body_lines]
 
 
 def build_life_html(

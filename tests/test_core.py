@@ -199,9 +199,8 @@ def test_render_pages_keep_long_lives_readable():
     pages = render.build_life_html_pages(
         ["【出身】测试"], lines, "终局", "结局文本", "序列9", "评分 60"
     )
-    assert len(pages) >= 2
+    assert len(pages) == 1
     assert "人生年鉴 · 1 /" in pages[0]
-    assert "下一页继续" in pages[0]
     assert "【结局】终局" in pages[-1]
 
 
