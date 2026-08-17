@@ -174,9 +174,9 @@ def _talent_tags(item: dict) -> str:
 
 
 def build_choice_html_pages(
-    kind: str, title: str, items: dict[str, dict], page_size: int = 8
+    kind: str, title: str, items: dict[str, dict], page_size: int = 16
 ) -> list[str]:
-    """生成出身或天赋选择图卡；两种选择使用不同的视觉语言。"""
+    """生成超宽四栏选择图卡；16 个选项优先收纳到一张图。"""
     records = list(items.values())
     pages = [records[i:i + page_size] for i in range(0, len(records), page_size)] or [[]]
     is_origin = kind == "origin"
@@ -215,17 +215,17 @@ def build_choice_html_pages(
         output.append(f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-  body {{ width: 1060px; padding: 34px; color: #e9e5dc; font-family: "Noto Sans SC", "Microsoft YaHei", serif; background: {background}; }}
-  .sheet {{ padding: 34px; border-radius: 26px; border: 1px solid {accent}; background: rgba(8, 13, 21, .78); box-shadow: 0 0 68px rgba(0,0,0,.28); }}
-  .head {{ display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:18px; border-bottom:1px solid rgba(255,255,255,.2); }}
-  .eyebrow {{ font-size:16px; letter-spacing:3px; color: {accent}; }} h1 {{ margin-top:7px; font-size:35px; letter-spacing:5px; color:#fff5d6; }} .page {{ font-size:15px; color:#c2bacd; letter-spacing:2px; }}
-  .grid {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px; }}
-  .option {{ position:relative; min-height:174px; padding:19px 20px 17px 25px; overflow:hidden; border-radius:16px; border:1px solid {accent}; background: {option_background}; }}
-  .index {{ position:absolute; right:17px; top:13px; font-size:16px; font-weight:700; letter-spacing:2px; color:{accent}; }} .name {{ padding-right:50px; font-size:24px; font-weight:800; color:#fff2cf; }}
-  .region {{ margin-top:5px; font-size:15px; color:{accent}; }} .stats {{ display:flex; gap:18px; margin-top:12px; font-size:16px; color:#edddaa; }}
-  .desc {{ margin-top:11px; padding-top:10px; border-top:1px solid rgba(255,255,255,.13); font-size:17px; line-height:1.55; color:#dedbe3; }}
-  .tags {{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }} .tag {{ padding:3px 8px; border-radius:99px; font-size:13px; color:#f8ddf2; border:1px solid {accent}; background:rgba(190, 78, 174, .16); }}
-  .tip {{ margin-top:20px; padding-top:15px; border-top:1px dashed rgba(255,255,255,.22); text-align:center; font-size:17px; letter-spacing:1px; color:#ded6c8; }}
+  body {{ width: 1520px; padding: 28px; color: #e9e5dc; font-family: "Noto Sans SC", "Microsoft YaHei", serif; background: {background}; }}
+  .sheet {{ padding: 27px; border-radius: 24px; border: 1px solid {accent}; background: rgba(8, 13, 21, .78); box-shadow: 0 0 68px rgba(0,0,0,.28); }}
+  .head {{ display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,.2); }}
+  .eyebrow {{ font-size:15px; letter-spacing:3px; color: {accent}; }} h1 {{ margin-top:5px; font-size:32px; letter-spacing:4px; color:#fff5d6; }} .page {{ font-size:15px; color:#c2bacd; letter-spacing:2px; }}
+  .grid {{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin-top:18px; }}
+  .option {{ position:relative; min-height:157px; padding:15px 15px 14px 17px; overflow:hidden; border-radius:14px; border:1px solid {accent}; background: {option_background}; }}
+  .index {{ position:absolute; right:13px; top:10px; font-size:14px; font-weight:700; letter-spacing:2px; color:{accent}; }} .name {{ padding-right:42px; font-size:20px; font-weight:800; color:#fff2cf; }}
+  .region {{ margin-top:4px; font-size:13px; color:{accent}; }} .stats {{ display:flex; gap:11px; margin-top:8px; font-size:14px; color:#edddaa; }}
+  .desc {{ margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.13); font-size:15px; line-height:1.5; color:#dedbe3; }}
+  .tags {{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }} .tag {{ padding:2px 6px; border-radius:99px; font-size:11.5px; color:#f8ddf2; border:1px solid {accent}; background:rgba(190, 78, 174, .16); }}
+  .tip {{ margin-top:15px; padding-top:12px; border-top:1px dashed rgba(255,255,255,.22); text-align:center; font-size:16px; letter-spacing:1px; color:#ded6c8; }}
 </style></head><body><main class="sheet">
   <header class="head"><div><div class="eyebrow">{eyebrow}</div><h1>{_esc(title)}</h1></div><div class="page">第 {page} / {total} 页</div></header>
   <section class="grid">{' '.join(card_html)}</section><div class="tip">回复 <b>/诡秘 选 编号</b>、名称或 <b>随机</b> 选择命运</div>

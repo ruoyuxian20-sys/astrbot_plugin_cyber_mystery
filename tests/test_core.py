@@ -206,14 +206,15 @@ def test_render_pages_keep_long_lives_readable():
 
 
 def test_choice_cards_have_distinct_origin_and_talent_styles():
-    origin_page = render.build_choice_html_pages(
-        "origin", "选择出身", events.ORIGINS
-    )[0]
-    talent_page = render.build_choice_html_pages(
-        "talent", "选择天赋", events.TALENTS
-    )[0]
+    origin_pages = render.build_choice_html_pages("origin", "选择出身", events.ORIGINS)
+    talent_pages = render.build_choice_html_pages("talent", "选择天赋", events.TALENTS)
+    assert len(origin_pages) == 1
+    assert len(talent_pages) == 1
+    origin_page = origin_pages[0]
+    talent_page = talent_pages[0]
     assert "雾都档案 · 身份卷宗" in origin_page
     assert "财力" in origin_page and "风险" in origin_page
+    assert "grid-template-columns:repeat(4" in origin_page
     assert "灵性档案 · 命运回响" in talent_page
     assert "非凡接触" in talent_page
 
