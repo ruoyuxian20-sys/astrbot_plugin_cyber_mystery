@@ -188,11 +188,18 @@ def test_render_html_escapes():
 
 
 def test_render_pages_keep_long_lives_readable():
-    lines = [("climb", f"{i}岁 " + "雾中回响" * 30) for i in range(20)]
+    compact_lines = [("climb", f"{i}岁 " + "雾中回响" * 6) for i in range(34)]
+    compact_pages = render.build_life_html_pages(
+        ["【出身】测试"], compact_lines, "终局", "结局文本", "序列9", "评分 60"
+    )
+    assert len(compact_pages) == 1
+    assert "grid-template-columns: repeat(3" in compact_pages[0]
+
+    lines = [("climb", f"{i}岁 " + "雾中回响" * 30) for i in range(80)]
     pages = render.build_life_html_pages(
         ["【出身】测试"], lines, "终局", "结局文本", "序列9", "评分 60"
     )
-    assert len(pages) >= 3
+    assert len(pages) >= 2
     assert "人生年鉴 · 1 /" in pages[0]
     assert "下一页继续" in pages[0]
     assert "【结局】终局" in pages[-1]

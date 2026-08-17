@@ -33,9 +33,9 @@ def _esc(value: object) -> str:
 
 
 def _chunk_lines(
-    body_lines: list[tuple[str, str]], max_lines: int = 14, max_chars: int = 1100
+    body_lines: list[tuple[str, str]], max_lines: int = 36, max_chars: int = 3600
 ) -> list[list[tuple[str, str]]]:
-    """按行数与总字数分页，兼顾群聊消息量与图片清晰度。"""
+    """优先使用横向网格；仅在内容极多时才分页。"""
     chunks: list[list[tuple[str, str]]] = []
     current: list[tuple[str, str]] = []
     chars = 0
@@ -87,22 +87,23 @@ def build_life_html(
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    width: 1040px; padding: 34px; color: #e7dfca;
+    width: 1520px; padding: 32px; color: #e7dfca;
     font-family: "Noto Sans SC", "Microsoft YaHei", serif;
     background: radial-gradient(circle at 12% 10%, rgba(143, 92, 190, .24), transparent 32%),
       radial-gradient(circle at 88% 90%, rgba(33, 109, 146, .22), transparent 35%),
       linear-gradient(145deg, #080b14, #171426 52%, #08121b);
   }}
-  .card {{ border: 1px solid rgba(222, 190, 108, .58); border-radius: 24px; padding: 34px 38px;
+  .card {{ border: 1px solid rgba(222, 190, 108, .58); border-radius: 24px; padding: 30px 34px;
     background: rgba(8, 11, 19, .86); box-shadow: 0 0 70px rgba(126, 83, 188, .2), inset 0 0 60px rgba(35, 23, 68, .24); }}
   .top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
     padding-bottom: 16px; border-bottom: 1px solid rgba(222, 190, 108, .35); }}
-  .title {{ font-size: 35px; font-weight: 800; letter-spacing: 7px; color: #f0ce7c; text-shadow: 0 0 20px rgba(240, 206, 124, .32); }}
+  .title {{ font-size: 38px; font-weight: 800; letter-spacing: 7px; color: #f0ce7c; text-shadow: 0 0 20px rgba(240, 206, 124, .32); }}
   .page {{ font-size: 15px; letter-spacing: 2px; color: #a99abf; }}
-  .hline {{ font-size: 18px; line-height: 1.55; color: #c7ba9b; margin: 6px 0; padding-left: 13px; border-left: 3px solid rgba(222, 190, 108, .35); }}
-  .sep {{ height: 1px; margin: 21px 0 15px; background: linear-gradient(90deg, transparent, rgba(222,190,108,.65), transparent); }}
-  .line {{ font-size: 21px; line-height: 1.72; word-break: break-word; color: #ddd5c4; margin: 10px 0; padding: 11px 18px 11px 21px;
-    border-left: 4px solid rgba(222, 190, 108, .46); border-radius: 0 12px 12px 0; background: linear-gradient(90deg, rgba(222, 190, 108, .10), transparent 78%); }}
+  .hline {{ font-size: 18px; line-height: 1.5; color: #c7ba9b; margin: 5px 0; padding-left: 13px; border-left: 3px solid rgba(222, 190, 108, .35); }}
+  .sep {{ height: 1px; margin: 18px 0 14px; background: linear-gradient(90deg, transparent, rgba(222,190,108,.65), transparent); }}
+  .timeline {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }}
+  .line {{ font-size: 18.5px; line-height: 1.58; word-break: break-word; color: #ddd5c4; margin: 0; padding: 10px 12px 10px 15px;
+    border-left: 4px solid rgba(222, 190, 108, .46); border-radius: 0 10px 10px 0; background: linear-gradient(90deg, rgba(222, 190, 108, .10), transparent 88%); }}
   .line-birth {{ color: #c9d2e9; border-left-color: #8499c8; }}
   .line-youth {{ color: #b8c5df; border-left-color: #8797bd; }}
   .line-key {{ color: #f0dba0; border-left-color: #e2b95e; }}
@@ -113,8 +114,8 @@ def build_life_html(
   .line-crisis::before {{ content: "☠ "; color: #c46a57; }}
   .line-meta {{ color: #baadd4; border-left-color: #9882bb; font-style: italic; }}
   .line-meta::before {{ content: "☾ "; color: #9882bb; }}
-  .ending {{ margin-top: 25px; padding: 15px 0; text-align: center; font-size: 27px; font-weight: 800; letter-spacing: 4px; color: #f0ce7c; border-top: 1px solid rgba(222,190,108,.4); border-bottom: 1px solid rgba(222,190,108,.4); }}
-  .etext {{ margin: 15px 14px 0; font-size: 21px; line-height: 1.78; color: #e4dccd; text-align: center; }}
+  .ending {{ margin-top: 22px; padding: 14px 0; text-align: center; font-size: 27px; font-weight: 800; letter-spacing: 4px; color: #f0ce7c; border-top: 1px solid rgba(222,190,108,.4); border-bottom: 1px solid rgba(222,190,108,.4); }}
+  .etext {{ margin: 13px 14px 0; font-size: 20px; line-height: 1.7; color: #e4dccd; text-align: center; }}
   .note {{ margin-top: 16px; font-size: 18px; color: #c9ba9b; text-align: center; }}
   .footer {{ margin-top: 19px; padding-top: 14px; font-size: 15px; color: #a79eae; text-align: center; border-top: 1px dashed rgba(222,190,108,.32); }}
   .continue {{ margin-top: 24px; padding-top: 16px; color: #a99abf; text-align: center; font-size: 17px; letter-spacing: 2px; border-top: 1px dashed rgba(222,190,108,.3); }}
@@ -122,7 +123,7 @@ def build_life_html(
 </head>
 <body><div class="card">
   <div class="top"><div class="title">🌫️ 诡秘人生 · 第五纪</div><div class="page">人生年鉴 · {page} / {total_pages}</div></div>
-  {header_html}<div class="sep"></div>{body_html}
+  {header_html}<div class="sep"></div><section class="timeline">{body_html}</section>
   {ending_html}
 </div></body></html>"""
 
