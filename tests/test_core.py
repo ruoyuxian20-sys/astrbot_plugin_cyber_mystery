@@ -9,24 +9,20 @@ sys.path.insert(
 )
 
 from cyber_mystery.core import endings, engine, events, pathways, render, storage
-from cyber_mystery.main import CyberMystery
+from cyber_mystery.core.commands import (
+    choose_random_build,
+    normalize_seed,
+    remainder_from_text,
+)
 
 STAGES = ("low", "mid", "high")
-
-
-class _FakeEvent:
-    def __init__(self, text: str):
-        self._text = text
-
-    def get_message_str(self) -> str:
-        return self._text
 
 
 # ---------- 词库完整性 ----------
 
 def test_origins_and_talents_complete():
-    assert len(events.ORIGINS) >= 8
-    assert len(events.TALENTS) >= 8
+    assert len(events.ORIGINS) >= 16
+    assert len(events.TALENTS) >= 16
     for key, o in events.ORIGINS.items():
         assert o["name"] and o["region"] and o["desc"]
         assert o["pathway_bias"], key
@@ -92,6 +88,10 @@ def test_event_pools_nonempty():
     assert events.DEATH_EVENTS
     assert events.MADNESS_EVENTS
     assert events.NORMAL_LATER_EVENTS
+    assert len(events.YOUTH_EVENTS) >= 20
+    assert all(len(events.CLIMB_EVENTS[stage]) >= 10 for stage in STAGES)
+    assert all(len(events.OUTER_EVENTS[stage]) >= 10 for stage in STAGES)
+    assert all(len(events.CRISIS_EVENTS[stage]) >= 9 for stage in STAGES)
 
 
 def test_endings_cover_all_categories():
@@ -187,6 +187,30 @@ def test_render_html_escapes():
     assert "结局&lt;&amp;&gt;" in html
 
 
+def test_render_pages_keep_long_lives_readable():
+    lines = [("climb", f"{i}岁 " + "雾中回响" * 30) for i in range(20)]
+    pages = render.build_life_html_pages(
+        ["【出身】测试"], lines, "终局", "结局文本", "序列9", "评分 60"
+    )
+    assert len(pages) >= 3
+    assert "人生年鉴 · 1 /" in pages[0]
+    assert "下一页继续" in pages[0]
+    assert "【结局】终局" in pages[-1]
+
+
+def test_choice_cards_have_distinct_origin_and_talent_styles():
+    origin_page = render.build_choice_html_pages(
+        "origin", "选择出身", events.ORIGINS
+    )[0]
+    talent_page = render.build_choice_html_pages(
+        "talent", "选择天赋", events.TALENTS
+    )[0]
+    assert "雾都档案 · 身份卷宗" in origin_page
+    assert "财力" in origin_page and "风险" in origin_page
+    assert "灵性档案 · 命运回响" in talent_page
+    assert "非凡接触" in talent_page
+
+
 # ---------- 存储 ----------
 
 def test_record_and_ranking():
@@ -239,21 +263,40 @@ def test_remainder_strips_group_and_subcommand():
         ("诡秘 帮助", ""),
     ]
     for text, expected in cases:
-        assert CyberMystery._remainder(dummy, _FakeEvent(text)) == expected, text
+        assert remainder_from_text(text) == expected, text
 
 
 # ---------- 种子复现 ----------
 
 def test_normalize_seed():
-    assert CyberMystery._normalize_seed("14") == 14
-    assert CyberMystery._normalize_seed("abc") == "abc"
-    assert CyberMystery._normalize_seed(None) is None
+    assert normalize_seed("14") == 14
+    assert normalize_seed("abc") == "abc"
+    assert normalize_seed(None) is None
 
-def test_known_god_and_eldritch_seeds():
-    god = engine.simulate(random.Random(3), "tingen_clerk", "transmigrator")
-    assert god["category"] == "god"
-    assert god["final_seq"] == 0
 
-    eld = engine.simulate(random.Random(45), "tingen_clerk", "lucky_coin")
-    assert eld["category"] == "eldritch"
-    assert eld["final_seq"] == 0
+def test_seeded_random_restart_is_reproducible():
+    first_rng = random.Random(normalize_seed("12345"))
+    first_origin, first_talent = choose_random_build(
+        first_rng, events.ORIGINS, events.TALENTS
+    )
+    first_result = engine.simulate(first_rng, first_origin, first_talent)
+
+    second_rng = random.Random(normalize_seed("12345"))
+    second_origin, second_talent = choose_random_build(
+        second_rng, events.ORIGINS, events.TALENTS
+    )
+    second_result = engine.simulate(second_rng, second_origin, second_talent)
+
+    assert (first_origin, first_talent, first_result) == (
+        second_origin,
+        second_talent,
+        second_result,
+    )
+
+def test_god_and_eldritch_are_reachable():
+    categories = {
+        engine.simulate(random.Random(seed), "tingen_clerk", "transmigrator")["category"]
+        for seed in range(500)
+    }
+    assert "god" in categories
+    assert "eldritch" in categories

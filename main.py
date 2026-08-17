@@ -10,7 +10,8 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 
 from .core import engine, events, pathways, storage
-from .core.render import build_life_html
+from .core.commands import choose_random_build, normalize_seed, remainder_from_text
+from .core.render import build_choice_html_pages, build_life_html_pages
 
 _HELP_TEXT = """🌫️ 赛博诡秘 · 诡秘人生重开使用说明
 
@@ -39,18 +40,6 @@ _HELP_TEXT = """🌫️ 赛博诡秘 · 诡秘人生重开使用说明
 _ORIGIN_HEADER = "🌫️ 诡秘人生 · 第一步，选择你的出身"
 _TALENT_HEADER = "🌫️ 诡秘人生 · 第二步，选择你的天赋"
 _CHOOSE_TIP = "回复 /诡秘 选 编号 或名称 · /诡秘 选 随机 听天由命"
-
-_GROUP_WORDS = {"mystery", "诡秘", "guimi"}
-_SUB_WORDS = {
-    "help", "帮助", "菜单",
-    "restart", "重开", "人生", "kaishi",
-    "choose", "选", "选择",
-    "origin", "出身", "地点",
-    "talent", "天赋", "才能",
-    "pathway", "途径", "图鉴",
-    "rank", "天骄榜", "排行榜", "排行",
-}
-
 
 class _Pending:
     """一个进行中的捏人选择。"""
@@ -115,21 +104,9 @@ class CyberMystery(Star):
     def _remainder(self, event: AstrMessageEvent) -> str:
         """去掉唤醒前缀、命令组和子命令词，返回剩余参数。"""
         try:
-            text = event.get_message_str().strip()
+            return remainder_from_text(event.get_message_str())
         except Exception:
             return ""
-        tokens = text.split()
-        if tokens and (tokens[0].startswith(("/", "／", "@"))):
-            tokens = tokens[1:]
-        command_words = _GROUP_WORDS | _SUB_WORDS
-        dropped = 0
-        while tokens and dropped < 2:
-            token = tokens[0].strip("，,。.！!？?")
-            if token.lower() not in command_words:
-                break
-            tokens = tokens[1:]
-            dropped += 1
-        return " ".join(tokens).strip()
 
     def _timeout(self) -> float:
         try:
@@ -154,15 +131,17 @@ class CyberMystery(Star):
         if not force and now - self._last_save < 30 and self._ops_since_save < 20:
             return
         base = self._data_dir()
+        saved: set[str] = set()
         for key in list(self._dirty):
             try:
                 storage.save_group_data(
                     os.path.join(base, f"{key}.json"),
                     self._groups.get(key, storage.empty_group()),
                 )
+                saved.add(key)
             except Exception as e:
                 logger.warning(f"cyber_mystery 保存群数据失败 {key}: {e}")
-        self._dirty.clear()
+        self._dirty.difference_update(saved)
         self._last_save = now
         self._ops_since_save = 0
 
@@ -217,15 +196,24 @@ class CyberMystery(Star):
         lines.append(_CHOOSE_TIP)
         return "\n".join(lines)
 
-    @staticmethod
-    def _normalize_seed(seed) -> str | int | None:
-        """把纯数字字符串种子转成 int，保证与本地搜索/复现一致。"""
-        if seed is None:
-            return None
-        try:
-            return int(str(seed))
-        except (ValueError, TypeError):
-            return seed
+    async def _option_results(
+        self,
+        event: AstrMessageEvent,
+        header: str,
+        items: dict[str, dict],
+        field: str,
+        kind: str,
+    ):
+        """输出选择卡片；图片不可用时保持文本交互。"""
+        if self._cfg("use_image", False):
+            try:
+                for page in build_choice_html_pages(kind, header, items):
+                    url = await self.html_render(page, {})
+                    yield event.image_result(url)
+                return
+            except Exception as e:
+                logger.warning(f"cyber_mystery 选择卡片渲染失败，回退纯文本: {e}")
+        yield event.plain_result(self._format_options(header, items, field))
 
     # ---------- 人生输出 ----------
 
@@ -282,8 +270,7 @@ class CyberMystery(Star):
                     seq_note = f"最终序列：序列{seq}"
                     if pathway and pathway.get("sequences") and seq in pathway["sequences"]:
                         seq_note += f" · {pathway['sequences'][seq]}"
-                url = await self.html_render(
-                    build_life_html(
+                for page in build_life_html_pages(
                         header_lines,
                         body_lines,
                         result["ending_title"],
@@ -292,10 +279,9 @@ class CyberMystery(Star):
                         (f"人生评分：{result['score']} / 100 · 称号「{result['title']}」"
                          + (f" · {player}" if player else "")
                          + (f" · 种子 {result['seed']}" if result.get("seed") is not None else "")),
-                    ),
-                    {},
-                )
-                yield event.image_result(url)
+                    ):
+                    url = await self.html_render(page, {})
+                    yield event.image_result(url)
                 return
             except Exception as e:
                 logger.warning(f"cyber_mystery 图片渲染失败，回退纯文本: {e}")
@@ -307,10 +293,12 @@ class CyberMystery(Star):
         origin_key: str,
         talent_key: str,
         seed: str | int | None = None,
+        rng: random.Random | None = None,
     ):
         """跑一局人生并返回待输出的异步生成器；seed 非空时使用确定性随机源。"""
-        seed = self._normalize_seed(seed)
-        rng = random.Random(seed) if seed is not None else self._rng
+        seed = normalize_seed(seed)
+        if rng is None:
+            rng = random.Random(seed) if seed is not None else self._rng
         result = engine.simulate(rng, origin_key, talent_key)
         if seed is not None:
             result = {**result, "seed": seed}
@@ -336,15 +324,21 @@ class CyberMystery(Star):
             self._set_pending(
                 event, _Pending("origin", None, time.time() + self._timeout())
             )
-            yield event.plain_result(
-                self._format_options(_ORIGIN_HEADER, events.ORIGINS, "desc")
-            )
+            async for result in self._option_results(
+                event, _ORIGIN_HEADER, events.ORIGINS, "desc", "origin"
+            ):
+                yield result
             return
         if args[0] in {"随机", "random", "随便"}:
-            origin_key = self._rng.choice(list(events.ORIGINS))
-            talent_key = self._rng.choice(list(events.TALENTS))
             seed = args[1] if len(args) >= 2 else None
-            async for result in self._run_life(event, origin_key, talent_key, seed):
+            normalized_seed = normalize_seed(seed)
+            rng = random.Random(normalized_seed) if normalized_seed is not None else self._rng
+            origin_key, talent_key = choose_random_build(
+                rng, events.ORIGINS, events.TALENTS
+            )
+            async for result in self._run_life(
+                event, origin_key, talent_key, normalized_seed, rng
+            ):
                 yield result
             return
         # 直选模式：<出身> [天赋 [种子]]
@@ -369,9 +363,10 @@ class CyberMystery(Star):
         self._set_pending(
             event, _Pending("talent", origin_key, time.time() + self._timeout())
         )
-        yield event.plain_result(
-            self._format_options(_TALENT_HEADER, events.TALENTS, "desc")
-        )
+        async for result in self._option_results(
+            event, _TALENT_HEADER, events.TALENTS, "desc", "talent"
+        ):
+            yield result
 
     @mystery.command("choose", alias={"选", "选择"})
     async def choose_cmd(self, event: AstrMessageEvent):
@@ -399,9 +394,10 @@ class CyberMystery(Star):
             self._set_pending(
                 event, _Pending("talent", key, time.time() + self._timeout())
             )
-            yield event.plain_result(
-                self._format_options(_TALENT_HEADER, events.TALENTS, "desc")
-            )
+            async for result in self._option_results(
+                event, _TALENT_HEADER, events.TALENTS, "desc", "talent"
+            ):
+                yield result
             return
         self._pending.pop(self._pending_key(event), None)
         async for result in self._run_life(event, pending.origin_key, key):
@@ -410,16 +406,18 @@ class CyberMystery(Star):
     @mystery.command("origin", alias={"出身", "地点"})
     async def origin_cmd(self, event: AstrMessageEvent):
         """查看全部可选出身"""
-        yield event.plain_result(
-            self._format_options("🌫️ 可选出身一览", events.ORIGINS, "desc")
-        )
+        async for result in self._option_results(
+            event, "🌫️ 可选出身一览", events.ORIGINS, "desc", "origin"
+        ):
+            yield result
 
     @mystery.command("talent", alias={"天赋", "才能"})
     async def talent_cmd(self, event: AstrMessageEvent):
         """查看全部可选天赋"""
-        yield event.plain_result(
-            self._format_options("🌫️ 可选天赋一览", events.TALENTS, "desc")
-        )
+        async for result in self._option_results(
+            event, "🌫️ 可选天赋一览", events.TALENTS, "desc", "talent"
+        ):
+            yield result
 
     @mystery.command("pathway", alias={"途径", "图鉴"})
     async def pathway_cmd(self, event: AstrMessageEvent):

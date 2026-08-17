@@ -2,7 +2,7 @@ name: cyber_mystery
 display_name: 赛博诡秘
 short_desc: 诡秘之主主题的人生重开模拟器：出身与天赋自由搭配，扮演法消化魔药，爬升序列直面失控与疯狂，冲击序列0成神结局。
 desc: 赛博诡秘 · 诡秘人生重开模拟器。选择出身与天赋开启一段诡秘世界的人生：随机事件流转，接触非凡组织，饮下魔药，以扮演法消化序列力量，从序列9一路爬升至序列0成神，或在疯狂与失控中化作雾中怪物。支持 /诡秘 重开（捏人式开局）、/诡秘 天骄榜（本群排行榜）、/诡秘 途径（途径图鉴）。纯本地随机引擎，不调用 LLM。
-version: 1.0.0
+version: 1.1.0
 author: ruoyuxian20-sys
 repo: https://github.com/ruoyuxian20-sys/astrbot_plugin_cyber_mystery
 astrbot_version: ">=4.9.2"
