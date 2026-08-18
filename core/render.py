@@ -42,6 +42,23 @@ def _chunk_lines(
     return [body_lines]
 
 
+def _column_major_slices(items: list[str], columns: int = 3) -> list[list[str]]:
+    """按列分配卡片：第一列从上到下读完，再进入下一列。"""
+    if not items:
+        return []
+    columns = max(1, min(columns, len(items)))
+    rows = (len(items) + columns - 1) // columns
+    return [items[start : start + rows] for start in range(0, len(items), rows)]
+
+
+def _column_major_html(cards: list[str], columns: int = 3) -> str:
+    columns_html = "".join(
+        f'<div class="timeline-column">{"".join(column)}</div>'
+        for column in _column_major_slices(cards, columns)
+    )
+    return f'<div class="timeline">{columns_html}</div>'
+
+
 def _narrative_blocks_html(view: NarrativeView) -> str:
     """按固定四章节输出摘要块，所有外部文本先转义。"""
     sections: list[str] = []
@@ -59,7 +76,7 @@ def _narrative_blocks_html(view: NarrativeView) -> str:
 </article>'''
             )
         sections.append(
-            f'<section class="chapter"><h2>{_esc(chapter)}</h2><div class="timeline">{"".join(cards)}</div></section>'
+            f'<section class="chapter"><h2>{_esc(chapter)}</h2>{_column_major_html(cards)}</section>'
         )
     return "".join(sections) or '<div class="nblock line-meta">雾中没有留下可辨认的文字。</div>'
 
@@ -111,7 +128,7 @@ def build_life_html(
             f'<article class="nblock {_KIND_CLASS.get(kind, "")}"><div class="block-text">{_esc(text)}</div></article>'
             for kind, text in body_lines
         ) or '<div class="nblock line-meta">雾中没有留下可辨认的文字。</div>'
-        body_html = f'<section class="chapter"><div class="timeline">{legacy_blocks}</div></section>'
+        body_html = f'<section class="chapter">{_column_major_html([legacy_blocks])}</section>'
         stats_html = ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -139,9 +156,10 @@ def build_life_html(
   .stat span {{ display:block; font-size: 13px; color:#a99f93; }} .stat b {{ display:block; margin-top:3px; font-size:18px; color:#f0dba0; }}
   .chapter {{ margin-top: 18px; }} .chapter h2 {{ margin-bottom: 9px; padding-left: 12px; color:#e6c878; font-size:21px; letter-spacing:2px; border-left:4px solid #d4af55; }}
   .timeline {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }}
+  .timeline-column {{ display:flex; flex-direction:column; gap:10px; min-width:0; }}
   .nblock {{ min-width:0; font-size: 18px; line-height: 1.52; word-break: break-word; color: #ddd5c4; margin: 0; padding: 10px 12px 10px 15px;
     border-left: 4px solid rgba(222, 190, 108, .46); border-radius: 0 10px 10px 0; background: linear-gradient(90deg, rgba(222, 190, 108, .10), transparent 88%); }}
-  .nblock.emphasis-key {{ grid-column: span 2; }} .nblock.emphasis-warning {{ background: linear-gradient(90deg, rgba(179,93,74,.18), transparent 88%); }}
+  .nblock.emphasis-key {{ background: linear-gradient(90deg, rgba(222,190,108,.16), transparent 88%); }} .nblock.emphasis-warning {{ background: linear-gradient(90deg, rgba(179,93,74,.18), transparent 88%); }}
   .block-meta {{ display:flex; justify-content:space-between; gap:8px; margin-bottom:4px; font-size:13px; color:#a99f93; }} .block-kind {{ opacity:.7; }} .block-text {{ color:inherit; }}
   .line {{ font-size: 18px; line-height: 1.52; }}
   .line-birth {{ color: #c9d2e9; border-left-color: #8499c8; }}

@@ -204,6 +204,21 @@ def test_render_pages_keep_long_lives_readable():
     assert "【结局】终局" in pages[-1]
 
 
+def test_render_events_fill_columns_before_moving_right():
+    cards = [f"card-{index}" for index in range(10)]
+    columns = render._column_major_slices(cards)
+    assert columns == [
+        ["card-0", "card-1", "card-2", "card-3"],
+        ["card-4", "card-5", "card-6", "card-7"],
+        ["card-8", "card-9"],
+    ]
+    html = render._column_major_html(cards)
+    assert html.count('class="timeline-column"') == 3
+    assert "flex-direction:column" in render.build_life_html_pages(
+        ["测试"], [("climb", "事件")], "结局", "文本", "序列", "页脚"
+    )[0]
+
+
 def test_narrative_summarizes_without_mutating_result():
     result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
     original_lines = [dict(line) for line in result["lines"]]
