@@ -11,6 +11,7 @@ from astrbot.api.star import Context, Star
 
 from .core import engine, events, pathways, storage
 from .core.commands import choose_random_build, normalize_seed, remainder_from_text
+from .core.narrative import summarize_life
 from .core.render import build_choice_html_pages, build_life_html_pages
 
 _HELP_TEXT = """🌫️ 赛博诡秘 · 诡秘人生重开使用说明
@@ -220,9 +221,8 @@ class CyberMystery(Star):
     async def _finish_life(self, event: AstrMessageEvent, result: dict):
         """渲染人生结果：默认文本，可选图卡，失败回退。"""
         player = self._sender_name(event)
-        body = engine.format_life(result, player)
-        if result.get("seed") is not None:
-            body += f"\n\n🧬 种子：{result['seed']}"
+        view = summarize_life(result, player)
+        body = engine.format_life(result, player, view=view)
         # 记录排行榜
         key = self._group_key(event)
         data = self._group_data(key)
@@ -240,46 +240,7 @@ class CyberMystery(Star):
         self._flush()
         if self._cfg("use_image", False):
             try:
-                origin = events.ORIGINS[result["origin_key"]]
-                talent = events.TALENTS[result["talent_key"]]
-                pathway = (
-                    pathways.get_pathway(result["pathway_key"])
-                    if result["pathway_key"]
-                    else None
-                )
-                header_lines = [
-                    f"【出身】{origin['name']}",
-                    f"【天赋】{talent['name']}——{talent['desc']}",
-                ]
-                if pathway:
-                    header_lines.append(
-                        f"【途径】{pathway['name']}（{pathway.get('faction', '')}）"
-                    )
-                body_lines = [
-                    (line["kind"], f"{line['age']}岁 {line['text']}" if line["age"] is not None else line["text"])
-                    for line in result["lines"]
-                ]
-                seq = result["final_seq"]
-                if result["category"] == "eldritch":
-                    seq_note = "最终序列：常理之外（旧日）"
-                elif result["category"] == "god":
-                    seq_note = f"最终序列：0 · {pathways.seq0_name(pathway)}（登神）"
-                elif seq is None:
-                    seq_note = "最终序列：无（凡人）"
-                else:
-                    seq_note = f"最终序列：序列{seq}"
-                    if pathway and pathway.get("sequences") and seq in pathway["sequences"]:
-                        seq_note += f" · {pathway['sequences'][seq]}"
-                for page in build_life_html_pages(
-                        header_lines,
-                        body_lines,
-                        result["ending_title"],
-                        result["ending_text"],
-                        seq_note,
-                        (f"人生评分：{result['score']} / 100 · 称号「{result['title']}」"
-                         + (f" · {player}" if player else "")
-                         + (f" · 种子 {result['seed']}" if result.get("seed") is not None else "")),
-                    ):
+                for page in build_life_html_pages(narrative=view):
                     url = await self.html_render(page, {})
                     yield event.image_result(url)
                 return

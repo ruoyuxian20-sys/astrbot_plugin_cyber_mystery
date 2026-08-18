@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import html as _html
 
+from .narrative import NarrativeView
+
 
 _KIND_CLASS = {
     "birth": "line-birth",
@@ -40,6 +42,42 @@ def _chunk_lines(
     return [body_lines]
 
 
+def _narrative_blocks_html(view: NarrativeView) -> str:
+    """按固定四章节输出摘要块，所有外部文本先转义。"""
+    sections: list[str] = []
+    for chapter in ("童年与征兆", "非凡接触", "序列攀升", "代价与终局"):
+        blocks = [block for block in view.blocks if block.chapter == chapter]
+        if not blocks:
+            continue
+        cards = []
+        for block in blocks:
+            kind_class = _KIND_CLASS.get(block.kind, "")
+            cards.append(
+                f'''<article class="nblock {kind_class} emphasis-{_esc(block.emphasis)}">
+  <div class="block-meta"><span class="block-age">{_esc(block.age_label)}</span><span class="block-kind">{_esc(block.kind)}</span></div>
+  <div class="block-text">{_esc(block.text)}</div>
+</article>'''
+            )
+        sections.append(
+            f'<section class="chapter"><h2>{_esc(chapter)}</h2><div class="timeline">{"".join(cards)}</div></section>'
+        )
+    return "".join(sections) or '<div class="nblock line-meta">雾中没有留下可辨认的文字。</div>'
+
+
+def _stats_html(stats: dict[str, int | float | str]) -> str:
+    labels = (
+        ("人生", f"{stats.get('age', 0)} 岁"),
+        ("评分", f"{stats.get('score', 0)} / 100"),
+        ("疯狂峰值", str(stats.get("madness_peak", 0))),
+        ("完美扮演", f"{stats.get('acting_perfect', 0)} 次"),
+        ("显示段落", str(stats.get("block_count", 0))),
+    )
+    return "".join(
+        f'<div class="stat"><span>{_esc(label)}</span><b>{_esc(value)}</b></div>'
+        for label, value in labels
+    )
+
+
 def build_life_html(
     header_lines: list[str],
     body_lines: list[tuple[str, str]],
@@ -51,23 +89,30 @@ def build_life_html(
     page: int = 1,
     total_pages: int = 1,
     show_ending: bool = True,
+    narrative: NarrativeView | None = None,
 ) -> str:
-    """渲染一页高分辨率、易阅读的人生年鉴卡片。"""
-    header_html = "\n".join(
-        f'<div class="hline">{_esc(line)}</div>' for line in header_lines
-    )
-    body_html = "\n".join(
-        f'<div class="line {_KIND_CLASS.get(kind, "")}">{_esc(text)}</div>'
-        for kind, text in body_lines
-    ) or '<div class="line line-meta">雾中没有留下可辨认的文字。</div>'
-    ending_html = ""
-    if show_ending:
-        ending_html = f'''<div class="ending">【结局】{_esc(ending_title)}</div>
-  <div class="etext">{_esc(ending_text)}</div>
-  <div class="note">{_esc(seq_note)}</div>
-  <div class="footer">{_esc(footer)}</div>'''
+    """渲染单张高分辨率人生年鉴；旧参数保留以兼容外部调用。"""
+    if narrative is not None:
+        header_lines = list(narrative.header_lines)
+        ending_title = narrative.ending_title
+        ending_text = narrative.ending_text
+        seq_note = narrative.seq_note
+        footer = narrative.footer
+        body_html = _narrative_blocks_html(narrative)
+        header_html = "\n".join(
+            f'<div class="hline">{_esc(line)}</div>' for line in header_lines
+        )
+        stats_html = _stats_html(narrative.stats)
     else:
-        ending_html = '<div class="continue">灰雾仍在翻涌，下一页继续。</div>'
+        header_html = "\n".join(
+            f'<div class="hline">{_esc(line)}</div>' for line in header_lines
+        )
+        legacy_blocks = "".join(
+            f'<article class="nblock {_KIND_CLASS.get(kind, "")}"><div class="block-text">{_esc(text)}</div></article>'
+            for kind, text in body_lines
+        ) or '<div class="nblock line-meta">雾中没有留下可辨认的文字。</div>'
+        body_html = f'<section class="chapter"><div class="timeline">{legacy_blocks}</div></section>'
+        stats_html = ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -83,15 +128,22 @@ def build_life_html(
   }}
   .card {{ border: 1px solid rgba(222, 190, 108, .58); border-radius: 24px; padding: 30px 34px;
     background: rgba(8, 11, 19, .86); box-shadow: 0 0 70px rgba(126, 83, 188, .2), inset 0 0 60px rgba(35, 23, 68, .24); }}
-  .top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+  .top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;
     padding-bottom: 16px; border-bottom: 1px solid rgba(222, 190, 108, .35); }}
   .title {{ font-size: 38px; font-weight: 800; letter-spacing: 7px; color: #f0ce7c; text-shadow: 0 0 20px rgba(240, 206, 124, .32); }}
   .page {{ font-size: 15px; letter-spacing: 2px; color: #a99abf; }}
   .hline {{ font-size: 18px; line-height: 1.5; color: #c7ba9b; margin: 5px 0; padding-left: 13px; border-left: 3px solid rgba(222, 190, 108, .35); }}
   .sep {{ height: 1px; margin: 18px 0 14px; background: linear-gradient(90deg, transparent, rgba(222,190,108,.65), transparent); }}
-  .timeline {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }}
-  .line {{ font-size: 18.5px; line-height: 1.58; word-break: break-word; color: #ddd5c4; margin: 0; padding: 10px 12px 10px 15px;
+  .stats {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin: 16px 0 8px; }}
+  .stat {{ padding: 9px 12px; border: 1px solid rgba(222,190,108,.2); border-radius: 10px; background: rgba(222,190,108,.06); }}
+  .stat span {{ display:block; font-size: 13px; color:#a99f93; }} .stat b {{ display:block; margin-top:3px; font-size:18px; color:#f0dba0; }}
+  .chapter {{ margin-top: 18px; }} .chapter h2 {{ margin-bottom: 9px; padding-left: 12px; color:#e6c878; font-size:21px; letter-spacing:2px; border-left:4px solid #d4af55; }}
+  .timeline {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }}
+  .nblock {{ min-width:0; font-size: 18px; line-height: 1.52; word-break: break-word; color: #ddd5c4; margin: 0; padding: 10px 12px 10px 15px;
     border-left: 4px solid rgba(222, 190, 108, .46); border-radius: 0 10px 10px 0; background: linear-gradient(90deg, rgba(222, 190, 108, .10), transparent 88%); }}
+  .nblock.emphasis-key {{ grid-column: span 2; }} .nblock.emphasis-warning {{ background: linear-gradient(90deg, rgba(179,93,74,.18), transparent 88%); }}
+  .block-meta {{ display:flex; justify-content:space-between; gap:8px; margin-bottom:4px; font-size:13px; color:#a99f93; }} .block-kind {{ opacity:.7; }} .block-text {{ color:inherit; }}
+  .line {{ font-size: 18px; line-height: 1.52; }}
   .line-birth {{ color: #c9d2e9; border-left-color: #8499c8; }}
   .line-youth {{ color: #b8c5df; border-left-color: #8797bd; }}
   .line-key {{ color: #f0dba0; border-left-color: #e2b95e; }}
@@ -110,36 +162,36 @@ def build_life_html(
 </style>
 </head>
 <body><div class="card">
-  <div class="top"><div class="title">🌫️ 诡秘人生 · 第五纪</div><div class="page">人生年鉴 · {page} / {total_pages}</div></div>
-  {header_html}<div class="sep"></div><section class="timeline">{body_html}</section>
-  {ending_html}
+  <div class="top"><div class="title">🌫️ 诡秘人生 · 第五纪</div><div class="page">人生年鉴</div></div>
+  {header_html}<div class="stats">{stats_html}</div><div class="sep"></div>{body_html}
+  <div class="ending">【结局】{_esc(ending_title)}</div>
+  <div class="etext">{_esc(ending_text)}</div>
+  <div class="note">{_esc(seq_note)}</div>
+  <div class="footer">{_esc(footer)}</div>
 </div></body></html>"""
 
 
 def build_life_html_pages(
-    header_lines: list[str],
-    body_lines: list[tuple[str, str]],
-    ending_title: str,
-    ending_text: str,
-    seq_note: str,
-    footer: str,
+    header_lines: list[str] | None = None,
+    body_lines: list[tuple[str, str]] | None = None,
+    ending_title: str = "",
+    ending_text: str = "",
+    seq_note: str = "",
+    footer: str = "",
+    *,
+    narrative: NarrativeView | None = None,
 ) -> list[str]:
-    """生成多页人生年鉴；每页保持可读字号和有限高度。"""
-    chunks = _chunk_lines(body_lines)
-    total = len(chunks)
+    """兼容旧接口，但始终返回单张人生图。"""
     return [
         build_life_html(
-            header_lines,
-            chunk,
+            header_lines or [],
+            body_lines or [],
             ending_title,
             ending_text,
             seq_note,
             footer,
-            page=index,
-            total_pages=total,
-            show_ending=index == total,
+            narrative=narrative,
         )
-        for index, chunk in enumerate(chunks, 1)
     ]
 
 

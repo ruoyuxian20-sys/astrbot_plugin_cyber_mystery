@@ -8,6 +8,7 @@ import random
 
 from . import endings as endings_mod
 from . import events as events_mod
+from . import narrative as narrative_mod
 from . import pathways as pathways_mod
 
 # ---------- 可调参数（测试依赖这些常量的稳定性） ----------
@@ -423,44 +424,12 @@ def simulate(
 
 # ---------- 文本格式化 ----------
 
-def format_life(result: dict, player: str = "") -> str:
-    """把人生结果渲染成纯文本。"""
-    origin = events_mod.ORIGINS[result["origin_key"]]
-    talent = events_mod.TALENTS[result["talent_key"]]
-    pathway = (
-        pathways_mod.get_pathway(result["pathway_key"])
-        if result["pathway_key"]
-        else None
+def format_life(
+    result: dict,
+    player: str = "",
+    view: narrative_mod.NarrativeView | None = None,
+) -> str:
+    """把人生结果渲染成摘要纯文本；图卡与文本共享同一叙事模型。"""
+    return narrative_mod.format_narrative(
+        view or narrative_mod.summarize_life(result, player)
     )
-    out = ["🌫️ 诡秘人生 · 第五纪"]
-    out.append("")
-    out.append(f"【出身】{origin['name']}")
-    out.append(f"【天赋】{talent['name']}——{talent['desc']}")
-    if pathway:
-        faction = pathway.get("faction", "")
-        out.append(f"【途径】{pathway['name']}（{faction}）")
-    out.append("")
-    for line in result["lines"]:
-        age = line["age"]
-        text = line["text"]
-        out.append(f"{age}岁 {text}" if age is not None else text)
-    out.append("")
-    seq = result["final_seq"]
-    if result["category"] == "eldritch":
-        seq_note = "最终序列：常理之外（旧日）"
-    elif result["category"] == "god":
-        seq_note = f"最终序列：0 · {pathways_mod.seq0_name(pathway)}（登神）"
-    elif seq is None:
-        seq_note = "最终序列：无（凡人）"
-    else:
-        seq_note = f"最终序列：序列{seq}"
-        if pathway and pathway.get("sequences") and seq in pathway["sequences"]:
-            seq_note += f" · {pathway['sequences'][seq]}"
-    out.append(f"【结局】{result['ending_title']}")
-    out.append(result["ending_text"])
-    out.append(seq_note)
-    tail = f"人生评分：{result['score']} / 100 · 称号「{result['title']}」"
-    if player:
-        tail += f" · {player}"
-    out.append(tail)
-    return "\n".join(out)

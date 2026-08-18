@@ -8,7 +8,7 @@ sys.path.insert(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
 )
 
-from cyber_mystery.core import endings, engine, events, pathways, render, storage
+from cyber_mystery.core import endings, engine, events, narrative, pathways, render, storage
 from cyber_mystery.core.commands import (
     choose_random_build,
     normalize_seed,
@@ -200,8 +200,91 @@ def test_render_pages_keep_long_lives_readable():
         ["【出身】测试"], lines, "终局", "结局文本", "序列9", "评分 60"
     )
     assert len(pages) == 1
-    assert "人生年鉴 · 1 /" in pages[0]
+    assert "诡秘人生 · 第五纪" in pages[0]
     assert "【结局】终局" in pages[-1]
+
+
+def test_narrative_summarizes_without_mutating_result():
+    result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    original_lines = [dict(line) for line in result["lines"]]
+    view = narrative.summarize_life(result, "测试者")
+    assert view.blocks
+    assert len(view.blocks) <= 30
+    assert tuple(block.chapter for block in view.blocks) == tuple(
+        block.chapter for block in view.blocks
+    )
+    assert any(block.chapter == "非凡接触" for block in view.blocks)
+    assert any(block.chapter == "代价与终局" for block in view.blocks)
+    assert result["lines"] == original_lines
+
+
+def test_narrative_preserves_key_nodes_and_merges_ordinary_events():
+    result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    view = narrative.summarize_life(result)
+    raw_key_texts = [
+        line["text"]
+        for line in result["lines"]
+        if line["kind"] in {"birth", "contact", "advance", "crisis", "madness", "ending"}
+    ]
+    for text in raw_key_texts:
+        assert any(text[:18] in block.text for block in view.blocks)
+    assert any(block.kind == "summary" for block in view.blocks)
+    assert any(block.kind == "acting" for block in view.blocks)
+
+
+def test_narrative_plain_text_and_card_share_blocks():
+    result = engine.simulate(random.Random(42), "tingen_clerk", "spirit_vision")
+    view = narrative.summarize_life(result, "测试者")
+    text = narrative.format_narrative(view)
+    html = render.build_life_html_pages(narrative=view)[0]
+    for block in view.blocks:
+        assert block.text[:20] in text
+        assert render._esc(block.text) in html
+
+
+def test_narrative_bounds_and_single_card_across_random_lives():
+    rng = random.Random(20260819)
+    for _ in range(300):
+        origin = rng.choice(list(events.ORIGINS))
+        talent = rng.choice(list(events.TALENTS))
+        result = engine.simulate(rng, origin, talent)
+        view = narrative.summarize_life(result)
+        assert len(view.blocks) <= 30
+        assert len(render.build_life_html_pages(narrative=view)) == 1
+
+
+def test_narrative_age_ranges_and_acting_counts():
+    result = {
+        "origin_key": "tingen_clerk",
+        "talent_key": "spirit_vision",
+        "pathway_key": "fool",
+        "category": "saint",
+        "final_seq": 4,
+        "score": 72,
+        "age": 41,
+        "madness_peak": 22,
+        "acting_perfect": 2,
+        "ending_title": "测试结局",
+        "ending_text": "测试结局文本",
+        "title": "测试称号",
+        "lines": [
+            {"kind": "birth", "age": 0, "text": "你出生于廷根"},
+            {"kind": "youth", "age": 5, "text": "你在雨中拾到一枚旧徽章"},
+            {"kind": "youth", "age": 9, "text": "你在学校的地图背面看见一条不存在的街"},
+            {"kind": "contact", "age": 16, "text": "你接触了非凡世界"},
+            {"kind": "acting", "age": 20, "text": "扮演得法：魔药温顺地融入血脉"},
+            {"kind": "acting", "age": 24, "text": "扮演尚可：消化仍在推进"},
+            {"kind": "acting", "age": 28, "text": "扮演失当：疯狂在梦中回响"},
+            {"kind": "crisis", "age": 30, "text": "你在灵界听见第一声钟响"},
+            {"kind": "crisis", "age": 30, "text": "你在灵界迷路了一夜"},
+        ],
+    }
+    view = narrative.summarize_life(result)
+    assert any(block.age_label == "5–9岁" for block in view.blocks)
+    acting = next(block for block in view.blocks if block.kind == "acting")
+    assert "得法1次" in acting.text and "尚可1次" in acting.text and "失当1次" in acting.text
+    assert sum(block.kind == "acting" for block in view.blocks) == 1
+    assert sum(block.kind == "crisis" for block in view.blocks) == 1
 
 
 def test_choice_cards_have_distinct_origin_and_talent_styles():
