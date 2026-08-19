@@ -7,6 +7,7 @@ from __future__ import annotations
 import random
 
 from . import endings as endings_mod
+from . import ascensions as ascensions_mod
 from . import events as events_mod
 from . import narrative as narrative_mod
 from . import pathways as pathways_mod
@@ -59,32 +60,31 @@ PATHWAY_ESSENCE = {
 }
 
 
-def _ascension_text(pathway_key: str, pathway: dict, kind: str) -> str:
-    """按途径生成序列四 / 真神 / 旧日的专属晋升词。"""
-    essence = PATHWAY_ESSENCE.get(pathway_key, "神秘")
-    seq4 = pathways_mod.seq_name(pathway, 4)
-    seq0 = pathways_mod.seq0_name(pathway)
-    if kind == "seq4":
-        return (
-            f"魔药入喉，{seq4}的轮廓在{essence}中浮现。\n"
-            f"你听见{pathway['name']}途径的源质开始低语，半神之门轰然洞开。\n"
-            "从今往后，你已是圣者——凡人仰望的深渊。"
-        )
-    if kind == "god":
-        return (
-            f"最后一滴魔药落入舌尖，{essence}在你体内彻底苏醒。\n"
-            f"「{seq0}」之名被刻入{pathway['name']}途径的顶点，旧日退潮。\n"
-            "你登临序列0，成为此世真神。"
-        )
-    return (
-        f"仪式没有停下，{essence}向着常理之外继续坍缩。\n"
-        f"你吞下相邻途径的序列0，{seq0}与你的存在融为一体。\n"
-        "历史在你身后合拢，世界因你而改写——你已是旧日。"
-    )
-
-
 def _line(kind: str, age: int | None, text: str) -> dict:
     return {"kind": kind, "age": age, "text": text}
+
+
+def _advance_line(
+    age: int,
+    text: str,
+    pathway_key: str,
+    sequence: int,
+    *,
+    mode: str = "",
+    visual_theme: str = "",
+) -> dict:
+    """生成带展示元数据的晋升事件；不触碰随机状态。"""
+    line = _line("advance", age, text)
+    line.update(
+        {
+            "pathway_key": pathway_key,
+            "sequence": sequence,
+            "ascension_scene": True,
+            "ascension_mode": mode or f"standard_seq{sequence}",
+            "visual_theme": visual_theme,
+        }
+    )
+    return line
 
 
 def _talent_num(talent: dict, key: str) -> float:
@@ -174,12 +174,15 @@ def simulate(
             )
         pathway = pathways_mod.get_pathway(pathway_key)
         seq = 9
+        entry_scene = ascensions_mod.get_ascension_scene(pathway_key, 9)
         lines.append(
-            _line(
-                "advance",
+            _advance_line(
                 age,
-                f"你饮下了「{pathways_mod.seq_name(pathway, 9)}」魔药，"
-                f"踏入{pathway['name']}途径",
+                entry_scene.text,
+                pathway_key,
+                9,
+                mode=entry_scene.mode,
+                visual_theme=entry_scene.visual_theme,
             )
         )
         if is_outer:
@@ -279,36 +282,56 @@ def simulate(
                 )
             if ascend:
                 if is_outer:
+                    terminus = ascensions_mod.get_final_scene(pathway_key, "outer_terminus")
+                    source = ascensions_mod.get_final_scene(pathway_key, "source_essence_devour")
                     lines.append(
-                        _line(
-                            "advance",
+                        _advance_line(
                             age,
-                            "你抵达了外神途径的尽头——常理在你身后合拢",
+                            terminus.text,
+                            pathway_key,
+                            0,
+                            mode=terminus.mode,
+                            visual_theme=terminus.visual_theme,
                         )
                     )
-                    lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "eldritch")))
+                    lines.append(
+                        _advance_line(
+                            age,
+                            source.text,
+                            pathway_key,
+                            0,
+                            mode=source.mode,
+                            visual_theme=source.visual_theme,
+                        )
+                    )
                     seq = 0
                     finished = "eldritch"
                 elif rng.random() < ELDRITCH_FROM_GOD:
+                    scene = ascensions_mod.get_final_scene(pathway_key, "adjacent_seq0_devour")
                     lines.append(
-                        _line(
-                            "advance",
+                        _advance_line(
                             age,
-                            "登神的仪式没有停下——你顺手吞下了相邻途径的序列0",
+                            scene.text,
+                            pathway_key,
+                            0,
+                            mode=scene.mode,
+                            visual_theme=scene.visual_theme,
                         )
                     )
-                    lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "eldritch")))
                     seq = 0
                     finished = "eldritch"
                 else:
+                    scene = ascensions_mod.get_final_scene(pathway_key, "standard_god")
                     lines.append(
-                        _line(
-                            "advance",
+                        _advance_line(
                             age,
-                            f"你完成了最后的仪式——「{pathways_mod.seq0_name(pathway)}」之名加于你身",
+                            scene.text,
+                            pathway_key,
+                            0,
+                            mode=scene.mode,
+                            visual_theme=scene.visual_theme,
                         )
                     )
-                    lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "god")))
                     seq = 0
                     finished = "god"
             else:
@@ -323,15 +346,26 @@ def simulate(
             fail_streak = 0
             name = pathways_mod.seq_name(pathway, seq)
             has_name = (pathway.get("sequences") or {}).get(seq)
-            lines.append(
-                _line(
-                    "advance",
-                    age,
-                    f"你晋升「{name}」" + ("" if has_name else f"（{pathway['name']}途径）"),
+            if seq in ascensions_mod.ASCENSION_SEQUENCES:
+                scene = ascensions_mod.get_ascension_scene(pathway_key, seq)
+                lines.append(
+                    _advance_line(
+                        age,
+                        scene.text,
+                        pathway_key,
+                        seq,
+                        mode=scene.mode,
+                        visual_theme=scene.visual_theme,
+                    )
                 )
-            )
-            if seq == 4:
-                lines.append(_line("advance", age, _ascension_text(pathway_key, pathway, "seq4")))
+            else:
+                lines.append(
+                    _line(
+                        "advance",
+                        age,
+                        f"你晋升「{name}」" + ("" if has_name else f"（{pathway['name']}途径）"),
+                    )
+                )
             if seq <= 3 and watched:
                 lines.append(
                     _line(

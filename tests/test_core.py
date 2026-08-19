@@ -1,6 +1,7 @@
 """核心逻辑测试：不依赖 AstrBot 运行时。"""
 import os
 import random
+import re
 import sys
 
 sys.path.insert(
@@ -8,7 +9,7 @@ sys.path.insert(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
 )
 
-from cyber_mystery.core import endings, engine, events, narrative, pathways, render, storage
+from cyber_mystery.core import ascensions, endings, engine, events, narrative, pathways, render, storage
 from cyber_mystery.core.commands import (
     choose_random_build,
     normalize_seed,
@@ -52,6 +53,21 @@ def test_pathways_structure():
         for seq, name in seqs.items():
             assert 0 <= seq <= 9 and isinstance(name, str) and name, f"{key} 序列{seq}"
         assert seqs[0], f"{key} 序列0 名称不能为空"
+
+
+def test_ascension_catalog_complete():
+    assert ascensions.validate_ascension_catalog() == []
+    assert set(ascensions.ASCENSION_SCENES) == set(pathways.ALL_PATHWAYS)
+    assert set(ascensions.FINAL_SCENES) == set(pathways.ALL_PATHWAYS)
+    for key in pathways.ALL_PATHWAYS:
+        scenes = ascensions.ASCENSION_SCENES[key]
+        assert set(scenes) == set(ascensions.ASCENSION_SEQUENCES)
+        assert len({scene.text for scene in scenes.values()}) == len(ascensions.ASCENSION_SEQUENCES)
+        for mode in ascensions.ASCENSION_MODES:
+            scene = ascensions.FINAL_SCENES[key][mode]
+            assert scene.sequence == 0 and scene.text
+        theme = ascensions.pathway_visual_theme(key)
+        assert all(theme.get(field) for field in ("accent", "border", "glow", "symbol", "texture"))
 
 
 def test_fool_pathway_full():
@@ -110,6 +126,30 @@ def test_simulate_deterministic():
             a = engine.simulate(random.Random(42), origin, talent)
             b = engine.simulate(random.Random(42), origin, talent)
             assert a == b, "同 seed 模拟结果必须一致"
+
+
+def test_high_sequence_lines_have_pathway_metadata():
+    result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    high = [line for line in result["lines"] if line.get("ascension_scene")]
+    assert high
+    assert all(line.get("pathway_key") == result["pathway_key"] for line in high)
+    assert all(line.get("sequence") in set(range(10)) for line in high)
+    assert all(line.get("visual_theme") for line in high)
+    assert any(line.get("sequence") == 4 for line in high)
+    assert any(line.get("sequence") == 0 for line in high)
+    assert any(line.get("sequence") == 9 for line in high)
+    assert all(len(line["text"]) >= 90 for line in high if line.get("sequence", 0) >= 5)
+
+
+def test_seeded_final_modes_cover_adjacent_and_source_devour():
+    adjacent = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    adjacent_modes = {line.get("ascension_mode") for line in adjacent["lines"]}
+    assert "adjacent_seq0_devour" in adjacent_modes
+
+    outer = engine.simulate(random.Random(1164), "bansy_watcher", "ancient_blood")
+    outer_modes = {line.get("ascension_mode") for line in outer["lines"]}
+    assert outer["category"] == "eldritch"
+    assert {"outer_terminus", "source_essence_devour"} <= outer_modes
 
 
 def test_simulate_structure_valid():
@@ -200,7 +240,7 @@ def test_render_pages_keep_long_lives_readable():
         ["【出身】测试"], lines, "终局", "结局文本", "序列9", "评分 60"
     )
     assert len(pages) == 1
-    assert "诡秘人生 · 第五纪" in pages[0]
+    assert "诡秘人生" in pages[0] and "第五纪 · 人生年鉴" in pages[0]
     assert "【结局】终局" in pages[-1]
 
 
@@ -224,7 +264,7 @@ def test_narrative_summarizes_without_mutating_result():
     original_lines = [dict(line) for line in result["lines"]]
     view = narrative.summarize_life(result, "测试者")
     assert view.blocks
-    assert len(view.blocks) <= 30
+    assert len(view.blocks) <= 36
     assert tuple(block.chapter for block in view.blocks) == tuple(
         block.chapter for block in view.blocks
     )
@@ -233,7 +273,7 @@ def test_narrative_summarizes_without_mutating_result():
     assert result["lines"] == original_lines
 
 
-def test_narrative_preserves_key_nodes_and_merges_ordinary_events():
+def test_narrative_preserves_key_nodes_and_expands_ordinary_events():
     result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
     view = narrative.summarize_life(result)
     raw_key_texts = [
@@ -243,8 +283,12 @@ def test_narrative_preserves_key_nodes_and_merges_ordinary_events():
     ]
     for text in raw_key_texts:
         assert any(text[:18] in block.text for block in view.blocks)
-    assert any(block.kind == "summary" for block in view.blocks)
-    assert any(block.kind == "acting" for block in view.blocks)
+    assert any(block.kind in {"climb", "acting", "youth"} for block in view.blocks)
+    plain = narrative.format_narrative(view)
+    assert "扮演记录" not in plain
+    assert "另有" not in plain
+    assert "summary" not in plain and "advance" not in plain
+    assert any("角色成为工具" in block.text for block in view.blocks)
 
 
 def test_narrative_plain_text_and_card_share_blocks():
@@ -253,8 +297,115 @@ def test_narrative_plain_text_and_card_share_blocks():
     text = narrative.format_narrative(view)
     html = render.build_life_html_pages(narrative=view)[0]
     for block in view.blocks:
-        assert block.text[:20] in text
-        assert render._esc(block.text) in html
+        plain_block = block.text
+        if block.kind.startswith("ascension_"):
+            match = re.match(r"ascension_(\d+)", block.kind)
+            assert match
+            pathway = pathways.get_pathway(str(view.stats["pathway_key"]))
+            seq_name = pathways.seq_name(pathway, int(match.group(1)))
+            plain_block = plain_block.replace(f"「{seq_name}」", f"【{seq_name}】", 1)
+        assert plain_block[:20] in text
+        escaped = render._esc(block.text)
+        if block.kind.startswith("ascension_"):
+            match = re.match(r"ascension_(\d+)", block.kind)
+            assert match
+            pathway = pathways.get_pathway(str(view.stats["pathway_key"]))
+            seq_name = render._esc(pathways.seq_name(pathway, int(match.group(1))))
+            escaped = escaped.replace(
+                f"「{seq_name}」",
+                f'「<span class="sequence-name">{seq_name}</span>」',
+                1,
+            )
+        assert escaped in html
+
+
+def test_low_sequence_names_are_highlighted_in_plain_and_html():
+    result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    view = narrative.summarize_life(result)
+    plain = narrative.format_narrative(view)
+    html = render.build_life_html_pages(narrative=view)[0]
+    pathway = pathways.get_pathway(result["pathway_key"])
+    for sequence in (9, 8, 7, 6, 5, 4, 3, 2, 1):
+        name = pathways.seq_name(pathway, sequence)
+        assert f"【{name}】" in plain
+    assert html.count('class="sequence-name"') >= 9
+    assert "ascension-low" in html
+
+
+def test_balanced_columns_follow_time_order_and_use_height_estimates():
+    result = engine.simulate(random.Random(1164), "bansy_watcher", "ancient_blood")
+    view = narrative.summarize_life(result)
+    weights = [render._estimated_block_weight(block) for block in view.blocks]
+    cols = render._balanced_column_slices(
+        [str(i) for i in range(len(view.blocks))], weights
+    )
+    flat = [int(value) for column in cols for value in column]
+    assert flat == list(range(len(view.blocks)))
+    sums = [sum(weights[int(value)] for value in column) for column in cols]
+    assert max(sums) - min(sums) < sum(weights) * 0.35
+
+
+def test_final_ascension_modes_are_distinct_and_renderable():
+    base = {
+        "origin_key": "tingen_clerk",
+        "talent_key": "transmigrator",
+        "pathway_key": "fool",
+        "category": "eldritch",
+        "final_seq": 0,
+        "score": 100,
+        "age": 54,
+        "madness_peak": 20,
+        "acting_perfect": 4,
+        "ending_title": "旧日",
+        "ending_text": "终局",
+        "title": "旧日之影",
+    }
+    views = {}
+    for mode in ascensions.ASCENSION_MODES:
+        result = {
+            **base,
+            "lines": [
+                {"kind": "birth", "age": 0, "text": "你出生于廷根"},
+                {
+                    "kind": "advance",
+                    "age": 54,
+                    "text": ascensions.get_final_scene("fool", mode).text,
+                    "pathway_key": "fool",
+                    "sequence": 0,
+                    "ascension_scene": True,
+                    "ascension_mode": mode,
+                    "visual_theme": "fool",
+                },
+            ],
+        }
+        view = narrative.summarize_life(result)
+        views[mode] = view
+        plain = narrative.format_narrative(view)
+        html = render.build_life_html_pages(narrative=view)[0]
+        assert ascensions.get_final_scene("fool", mode).text[:24] in plain
+        assert len(render.build_life_html_pages(narrative=view)) == 1
+        assert "pathway-fool" in html
+    assert len({views[mode].blocks[-1].text for mode in ascensions.ASCENSION_MODES}) == 4
+
+
+def test_v13_narrative_is_chronological_and_hides_internal_labels():
+    result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    view = narrative.summarize_life(result)
+    text = narrative.format_narrative(view)
+    html = render.build_life_html_pages(narrative=view)[0]
+
+    ages = [
+        int(match)
+        for block in view.blocks
+        for match in re.findall(r"\d+", block.age_label)
+    ]
+    assert ages == sorted(ages)
+    assert "◆" not in text
+    assert "summary" not in text and "advance" not in text and "acting" not in text
+    assert "另有" not in text
+    assert "class=\"chapter\"" not in html
+    assert "block-kind" not in html
+    assert html.count('class="timeline-column"') == 3
 
 
 def test_narrative_bounds_and_single_card_across_random_lives():
@@ -264,11 +415,11 @@ def test_narrative_bounds_and_single_card_across_random_lives():
         talent = rng.choice(list(events.TALENTS))
         result = engine.simulate(rng, origin, talent)
         view = narrative.summarize_life(result)
-        assert len(view.blocks) <= 30
+        assert len(view.blocks) <= 36
         assert len(render.build_life_html_pages(narrative=view)) == 1
 
 
-def test_narrative_age_ranges_and_acting_counts():
+def test_narrative_individual_age_blocks_and_acting_counts():
     result = {
         "origin_key": "tingen_clerk",
         "talent_key": "spirit_vision",
@@ -295,11 +446,65 @@ def test_narrative_age_ranges_and_acting_counts():
         ],
     }
     view = narrative.summarize_life(result)
-    assert any(block.age_label == "5–9岁" for block in view.blocks)
-    acting = next(block for block in view.blocks if block.kind == "acting")
-    assert "得法1次" in acting.text and "尚可1次" in acting.text and "失当1次" in acting.text
-    assert sum(block.kind == "acting" for block in view.blocks) == 1
-    assert sum(block.kind == "crisis" for block in view.blocks) == 1
+    assert any(block.age_label == "【5岁】" for block in view.blocks)
+    assert any(block.age_label == "【9岁】" for block in view.blocks)
+    assert view.stats["acting_good"] == 1
+    assert view.stats["acting_ok"] == 1
+    assert view.stats["acting_bad"] == 1
+    plain = narrative.format_narrative(view)
+    assert "扮演得法" not in plain and "扮演尚可" not in plain and "扮演失当" not in plain
+    assert all(block.age_label.startswith("【") for block in view.blocks if block.age_label)
+    assert sum(block.kind == "crisis" for block in view.blocks) == 2
+
+
+def test_interval_events_expand_individually_and_keep_original_order():
+    result = {
+        "origin_key": "tingen_clerk",
+        "talent_key": "spirit_vision",
+        "pathway_key": "fool",
+        "category": "saint",
+        "final_seq": 4,
+        "score": 72,
+        "age": 32,
+        "madness_peak": 12,
+        "acting_perfect": 2,
+        "ending_title": "测试结局",
+        "ending_text": "测试结局文本",
+        "title": "测试称号",
+        "lines": [
+            {"kind": "birth", "age": 0, "text": "你出生于廷根"},
+            {"kind": "contact", "age": 14, "text": "你接触了非凡世界"},
+            {
+                "kind": "advance", "age": 14, "text": "你饮下「占卜家」魔药",
+                "pathway_key": "fool", "sequence": 9, "ascension_scene": True,
+                "ascension_mode": "standard_seq9", "visual_theme": "fool",
+            },
+            {"kind": "climb", "age": 17, "text": "你在旧书店找到一页被封印的笔记"},
+            {"kind": "acting", "age": 19, "text": "扮演得法：魔药温顺地融入血脉"},
+            {"kind": "climb", "age": 21, "text": "你在灵界的回声中辨认出组织的暗号"},
+            {"kind": "acting", "age": 23, "text": "扮演失当：污染在梦中回响"},
+            {
+                "kind": "advance", "age": 25, "text": "你晋升为「小丑」",
+                "pathway_key": "fool", "sequence": 8, "ascension_scene": True,
+                "ascension_mode": "standard_seq8", "visual_theme": "fool",
+            },
+        ],
+    }
+    view = narrative.summarize_life(result)
+    interval = [block for block in view.blocks if block.age_label in {"【17岁】", "【19岁】", "【21岁】", "【23岁】"}]
+    assert [block.age_label for block in interval] == ["【17岁】", "【19岁】", "【21岁】", "【23岁】"]
+    assert [block.kind for block in interval] == ["climb", "acting", "climb", "acting"]
+
+
+def test_compact_card_shell_reserves_space_for_body_blocks():
+    result = engine.simulate(random.Random(59), "tingen_clerk", "transmigrator")
+    html = render.build_life_html_pages(narrative=narrative.summarize_life(result))[0]
+    assert 'class="eyebrow"' in html
+    assert 'class="identity"' in html
+    assert 'class="ending-strip"' in html
+    assert 'class="ending-seq"' in html
+    assert '<div class="note">' not in html
+    assert 'font-size:28px' in html
 
 
 def test_choice_cards_have_distinct_origin_and_talent_styles():
